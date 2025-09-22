@@ -524,6 +524,36 @@ namespace UnityProjectAnalyzer
 
             return mapping;
         }
+
+    public async Task<List<GameObjectInfo>> GetGameObjectsForReport(string sceneFilePath)
+    {
+        var content = await File.ReadAllTextAsync(sceneFilePath);
+        var gameObjects = ParseGameObjects(content);
+        var hierarchy = BuildHierarchy(gameObjects);
+        var orderedHierarchy = GetOrderedRoots(content, hierarchy);
+        
+        var result = new List<GameObjectInfo>();
+        FlattenHierarchy(orderedHierarchy, result, 0);
+        
+        return result;
+    }        private void FlattenHierarchy(List<GameObject> hierarchy, List<GameObjectInfo> result, int depth)
+        {
+            foreach (var item in hierarchy)
+            {
+                result.Add(new GameObjectInfo
+                {
+                    Name = item.Name,
+                    Depth = depth,
+                    FileId = item.FileId,
+                    ParentId = item.ParentId
+                });
+                
+                if (item.Children.Any())
+                {
+                    FlattenHierarchy(item.Children, result, depth + 1);
+                }
+            }
+        }
     }
 
     public class GameObject

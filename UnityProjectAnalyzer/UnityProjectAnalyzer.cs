@@ -24,30 +24,61 @@ namespace UnityProjectAnalyzer
 
         public async Task AnalyzeProject(string unityProjectPath, string outputFolderPath)
         {
+            using var totalTimer = new PerformanceTimer("Unity Project Analysis");
+            
+            Console.WriteLine("Unity Project Analyzer v2.0");
+            Console.WriteLine("================================");
+            
             // Find all scene files
             var sceneFiles = Directory.GetFiles(Path.Combine(unityProjectPath, "Assets"), "*.unity", SearchOption.AllDirectories);
+            ProgressBar.ShowInfo($"Found {sceneFiles.Length} scene files");
             
             // Find all script files
             var scriptFiles = Directory.GetFiles(Path.Combine(unityProjectPath, "Assets"), "*.cs", SearchOption.AllDirectories);
+            ProgressBar.ShowInfo($"Found {scriptFiles.Length} script files");
+
+            // Store scene analysis results for HTML report
+            var sceneResults = new List<SceneAnalysisResult>();
+            var processedScenes = 0;
 
             // Parse scenes in parallel
             var sceneParsingTasks = sceneFiles.Select(async sceneFile =>
             {
+                using var sceneTimer = new PerformanceTimer($"Scene: {Path.GetFileNameWithoutExtension(sceneFile)}");
+                
                 var hierarchy = await _sceneParser.ParseSceneHierarchy(sceneFile);
                 var sceneName = Path.GetFileNameWithoutExtension(sceneFile);
                 var outputFile = Path.Combine(outputFolderPath, $"{sceneName}.unity.dump");
                 await File.WriteAllTextAsync(outputFile, hierarchy);
+                
+                // Get detailed scene info for HTML report
+                var gameObjects = await _sceneParser.GetGameObjectsForReport(sceneFile);
+                lock (sceneResults)
+                {
+                    sceneResults.Add(new SceneAnalysisResult
+                    {
+                        SceneName = $"{sceneName}.unity",
+                        GameObjects = gameObjects
+                    });
+                    
+                    processedScenes++;
+                    ProgressBar.Show(processedScenes, sceneFiles.Length, "Processing scenes");
+                }
+                
                 return sceneFile;
             });
 
             // Parse scripts in parallel
-            var scriptParsingTask = _scriptAnalyzer.AnalyzeScripts(scriptFiles);
+            using (new PerformanceTimer("Script Analysis"))
+            {
+                var scriptParsingTask = _scriptAnalyzer.AnalyzeScripts(scriptFiles);
 
-            // Wait for scene parsing to complete
-            await Task.WhenAll(sceneParsingTasks);
-            
-            // Get script analysis results
-            var scriptAnalysisResult = await scriptParsingTask;
+                // Wait for scene parsing to complete
+                await Task.WhenAll(sceneParsingTasks);
+                
+                // Get script analysis results
+                var scriptAnalysisResult = await scriptParsingTask;
+                ProgressBar.ShowSuccess($"Analyzed {scriptAnalysisResult.Scripts.Count} scripts");
 
             // Find scripts referenced in scenes
             var referencedScripts = new HashSet<string>();
@@ -65,8 +96,30 @@ namespace UnityProjectAnalyzer
                 .Where(script => !referencedScripts.Contains(script.ClassName))
                 .ToList();
 
-            // Generate unused scripts report
-            await GenerateUnusedScriptsReport(unusedScripts, outputFolderPath);
+                // Generate unused scripts report
+                await GenerateUnusedScriptsReport(unusedScripts, outputFolderPath);
+                
+                if (unusedScripts.Count > 0)
+                {
+                    ProgressBar.ShowWarning($"Found {unusedScripts.Count} unused scripts");
+                }
+                else
+                {
+                    ProgressBar.ShowSuccess("No unused scripts found - project is clean");
+                }
+
+                // Generate interactive HTML report
+                using (new PerformanceTimer("HTML Report Generation"))
+                {
+                    var htmlGenerator = new HtmlReportGenerator(sceneResults, unusedScripts, unityProjectPath);
+                    await htmlGenerator.GenerateReportAsync(outputFolderPath);
+                }
+            }
+            
+            Console.WriteLine();
+            ProgressBar.ShowSuccess("Analysis complete");
+            Console.WriteLine("Check 'UnityProjectReport.html' for an interactive overview");
+            Console.WriteLine("Text reports available in the output folder");
         }
 
         private async Task GenerateUnusedScriptsReport(List<ScriptInfo> unusedScripts, string outputFolderPath)

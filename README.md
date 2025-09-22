@@ -2,10 +2,11 @@
 
 A powerful .NET console tool for analyzing Unity game projects. Extracts scene hierarchies and identifies unused MonoBehaviour scripts using advanced parsing techniques.
 
-## 🚀 Features
+## Features
 
 - **Scene Hierarchy Analysis**: Parses Unity scene files (.unity) and outputs the GameObject hierarchy in a readable format
 - **Unused Script Detection**: Identifies C# MonoBehaviour scripts that are not referenced in any scene
+- **Interactive HTML Reports**: Generates beautiful, searchable HTML reports with project statistics
 - **Parallel Processing**: Uses async/parallel APIs for improved performance with large projects
 - **Roslyn Integration**: Uses Microsoft CodeAnalysis (Roslyn) for advanced C# script parsing
 - **YamlDotNet Integration**: Robust parsing of Unity's complex YAML scene format

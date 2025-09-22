@@ -11,15 +11,24 @@ namespace UnityProjectAnalyzer
     {
         private readonly List<SceneAnalysisResult> _sceneResults;
         private readonly List<ScriptInfo> _unusedScripts;
+        private readonly ComponentAnalysisResult _componentAnalysis;
+        private readonly MissingReferenceResult _missingReferences;
+        private readonly ProjectHealthMetrics _healthMetrics;
         private readonly string _projectPath;
         private readonly DateTime _analysisTime;
 
         public HtmlReportGenerator(List<SceneAnalysisResult> sceneResults, 
-                                 List<ScriptInfo> unusedScripts, 
+                                 List<ScriptInfo> unusedScripts,
+                                 ComponentAnalysisResult componentAnalysis,
+                                 MissingReferenceResult missingReferences,
+                                 ProjectHealthMetrics healthMetrics,
                                  string projectPath)
         {
             _sceneResults = sceneResults;
             _unusedScripts = unusedScripts;
+            _componentAnalysis = componentAnalysis;
+            _missingReferences = missingReferences;
+            _healthMetrics = healthMetrics;
             _projectPath = projectPath;
             _analysisTime = DateTime.Now;
         }
@@ -43,6 +52,9 @@ namespace UnityProjectAnalyzer
             html.AppendLine("<body>");
             html.AppendLine(GenerateHeader());
             html.AppendLine(GenerateOverviewSection());
+            html.AppendLine(GenerateProjectHealthSection());
+            html.AppendLine(GenerateComponentsSection());
+            html.AppendLine(GenerateMissingReferencesSection());
             html.AppendLine(GenerateScenesSection());
             html.AppendLine(GenerateUnusedScriptsSection());  
             html.AppendLine(GenerateScripts());
@@ -331,6 +343,298 @@ namespace UnityProjectAnalyzer
             </div>
         </div>
     </div>";
+        }
+
+        private string GenerateProjectHealthSection()
+        {
+            var html = new StringBuilder();
+            html.AppendLine(@"    <div class=""section"">");
+            html.AppendLine(@"        <h2>Project Health Analysis</h2>");
+            
+            // Overall health score with grade styling
+            var gradeColor = _healthMetrics.HealthGrade switch
+            {
+                "A" => "#27ae60",
+                "B" => "#2ecc71", 
+                "C" => "#f39c12",
+                "D" => "#e67e22",
+                "F" => "#e74c3c",
+                _ => "#95a5a6"
+            };
+
+            html.AppendLine($@"        <div style=""text-align: center; margin-bottom: 30px;"">");
+            html.AppendLine($@"            <div style=""display: inline-block; background: {gradeColor}; color: white; padding: 20px 40px; border-radius: 50%; font-size: 3em; font-weight: bold; margin-bottom: 10px;"">");
+            html.AppendLine($@"                {_healthMetrics.HealthGrade}");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div style=""font-size: 1.5em; color: #2c3e50; margin-bottom: 5px;"">Overall Health Score</div>");
+            html.AppendLine($@"            <div style=""font-size: 2em; font-weight: bold; color: {gradeColor};"">{_healthMetrics.OverallHealthScore:F1}/100</div>");
+            html.AppendLine($@"        </div>");
+
+            // Health metrics grid
+            html.AppendLine($@"        <div class=""stats-grid"" style=""margin-bottom: 30px;"">");
+            html.AppendLine($@"            <div class=""stat-card"" style=""background: linear-gradient(135deg, #3498db, #2980b9);"">");
+            html.AppendLine($@"                <div class=""stat-value"">{_healthMetrics.ScriptUtilizationRate:F1}%</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Script Utilization</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"" style=""background: linear-gradient(135deg, #9b59b6, #8e44ad);"">");
+            html.AppendLine($@"                <div class=""stat-value"">{_healthMetrics.AverageSceneComplexity:F1}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Avg Scene Complexity</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"" style=""background: linear-gradient(135deg, #1abc9c, #16a085);"">");
+            html.AppendLine($@"                <div class=""stat-value"">{_healthMetrics.ProjectOrganizationScore:F1}/100</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Organization Score</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"" style=""background: linear-gradient(135deg, #e67e22, #d35400);"">");
+            html.AppendLine($@"                <div class=""stat-value"">{_healthMetrics.AssetQualityScore:F1}/100</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Asset Quality</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"        </div>");
+
+            // Recommendations section
+            if (_healthMetrics.Recommendations.Any())
+            {
+                html.AppendLine($@"        <div class=""scene-item"" style=""margin-bottom: 20px;"">");
+                html.AppendLine($@"            <div class=""scene-header"" onclick=""toggleScene('recommendations')"">");
+                html.AppendLine($@"                <h3 style=""color: #e67e22;"">");
+                html.AppendLine($@"                    Improvement Recommendations");
+                html.AppendLine($@"                    <span>");
+                html.AppendLine($@"                        <small>({_healthMetrics.Recommendations.Count} items)</small>");
+                html.AppendLine($@"                        <span class=""toggle-icon"" id=""icon_recommendations"">▶</span>");
+                html.AppendLine($@"                    </span>");
+                html.AppendLine($@"                </h3>");
+                html.AppendLine($@"            </div>");
+                html.AppendLine($@"            <div class=""scene-content"" id=""content_recommendations"">");
+                html.AppendLine($@"                <div style=""display: grid; gap: 12px; margin-top: 15px;"">");
+                
+                for (int i = 0; i < _healthMetrics.Recommendations.Count; i++)
+                {
+                    var recommendation = _healthMetrics.Recommendations[i];
+                    html.AppendLine($@"                    <div style=""padding: 12px 16px; background: rgba(230,126,34,0.1); border-radius: 8px; border-left: 4px solid #e67e22;"">");
+                    html.AppendLine($@"                        <div style=""display: flex; align-items: flex-start; gap: 12px;"">");
+                    html.AppendLine($@"                            <div style=""background: #e67e22; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: bold; flex-shrink: 0;"">{i + 1}</div>");
+                    html.AppendLine($@"                            <div style=""color: #2c3e50; line-height: 1.5;"">{recommendation}</div>");
+                    html.AppendLine($@"                        </div>");
+                    html.AppendLine($@"                    </div>");
+                }
+                
+                html.AppendLine($@"                </div>");
+                html.AppendLine($@"            </div>");
+                html.AppendLine($@"        </div>");
+            }
+
+            // Detailed metrics breakdown
+            html.AppendLine($@"        <div class=""scene-item"" style=""margin-bottom: 20px;"">");
+            html.AppendLine($@"            <div class=""scene-header"" onclick=""toggleScene('detailed_metrics')"">");
+            html.AppendLine($@"                <h3>");
+            html.AppendLine($@"                    Detailed Metrics");
+            html.AppendLine($@"                    <span>");
+            html.AppendLine($@"                        <small>(Scene Complexity, Script Distribution, Component Usage)</small>");
+            html.AppendLine($@"                        <span class=""toggle-icon"" id=""icon_detailed_metrics"">▶</span>");
+            html.AppendLine($@"                    </span>");
+            html.AppendLine($@"                </h3>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""scene-content"" id=""content_detailed_metrics"">");
+            html.AppendLine($@"                <div style=""margin-top: 15px;"">");
+            
+            // Scene complexity breakdown
+            html.AppendLine($@"                    <h4 style=""margin-bottom: 15px; color: #2c3e50;"">Scene Complexity Analysis</h4>");
+            html.AppendLine($@"                    <div style=""display: grid; gap: 8px; margin-bottom: 25px;"">");
+            
+            foreach (var scene in _healthMetrics.SceneComplexity.OrderByDescending(s => s.ComplexityScore))
+            {
+                var complexityColor = scene.ComplexityScore switch
+                {
+                    <= 30 => "#27ae60",
+                    <= 60 => "#f39c12", 
+                    _ => "#e74c3c"
+                };
+                
+                html.AppendLine($@"                        <div style=""padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid {complexityColor};"">");
+                html.AppendLine($@"                            <div style=""display: flex; justify-content: space-between; align-items: center;"">");
+                html.AppendLine($@"                                <div>");
+                html.AppendLine($@"                                    <strong>{scene.SceneName}</strong>");
+                html.AppendLine($@"                                    <div style=""color: #666; font-size: 0.9em;"">Objects: {scene.GameObjectCount}, Max Depth: {scene.MaxDepth}, Roots: {scene.RootObjectCount}</div>");
+                html.AppendLine($@"                                </div>");
+                html.AppendLine($@"                                <div style=""text-align: right;"">");
+                html.AppendLine($@"                                    <div style=""color: {complexityColor}; font-weight: bold;"">{scene.ComplexityScore:F1}/100</div>");
+                html.AppendLine($@"                                </div>");
+                html.AppendLine($@"                            </div>");
+                html.AppendLine($@"                        </div>");
+            }
+            
+            html.AppendLine($@"                </div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"        </div>");
+            
+            html.AppendLine(@"    </div>");
+            return html.ToString();
+        }
+
+        private string GenerateComponentsSection()
+        {
+            var html = new StringBuilder();
+            html.AppendLine(@"    <div class=""section"">");
+            html.AppendLine(@"        <h2>Component Analysis</h2>");
+            
+            // Component overview stats
+            var totalComponents = _componentAnalysis.AllComponents.Sum(c => c.UsageCount);
+            var totalComponentTypes = _componentAnalysis.AllComponents.Count;
+            var categoriesCount = _componentAnalysis.ComponentCategories.Count;
+            
+            html.AppendLine($@"        <div class=""stats-grid"" style=""margin-bottom: 20px;"">");
+            html.AppendLine($@"            <div class=""stat-card"">");
+            html.AppendLine($@"                <div class=""stat-value"">{totalComponents}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Total Components</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"">");
+            html.AppendLine($@"                <div class=""stat-value"">{totalComponentTypes}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Component Types</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"">");
+            html.AppendLine($@"                <div class=""stat-value"">{categoriesCount}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Categories</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"        </div>");
+
+            // Component categories
+            foreach (var category in _componentAnalysis.ComponentCategories.OrderByDescending(c => c.Value.Sum(comp => comp.UsageCount)))
+            {
+                var categoryId = category.Key.Replace(" ", "_").ToLower();
+                var categoryTotal = category.Value.Sum(c => c.UsageCount);
+                
+                html.AppendLine($@"        <div class=""scene-item"" style=""margin-bottom: 15px;"">");
+                html.AppendLine($@"            <div class=""scene-header"" onclick=""toggleScene('{categoryId}_components')"">");
+                html.AppendLine($@"                <h3>");
+                html.AppendLine($@"                    {category.Key} Components");
+                html.AppendLine($@"                    <span>");
+                html.AppendLine($@"                        <small>({categoryTotal} total, {category.Value.Count} types)</small>");
+                html.AppendLine($@"                        <span class=""toggle-icon"" id=""icon_{categoryId}_components"">▶</span>");
+                html.AppendLine($@"                    </span>");
+                html.AppendLine($@"                </h3>");
+                html.AppendLine($@"            </div>");
+                html.AppendLine($@"            <div class=""scene-content"" id=""content_{categoryId}_components"">");
+                html.AppendLine($@"                <div style=""display: grid; gap: 10px; margin-top: 10px;"">");
+                
+                foreach (var component in category.Value.OrderByDescending(c => c.UsageCount))
+                {
+                    var percentage = totalComponents > 0 ? (component.UsageCount * 100.0 / totalComponents) : 0;
+                    var scenesText = string.Join(", ", component.ScenesUsed.Take(3));
+                    if (component.ScenesUsed.Count > 3)
+                        scenesText += $" (+{component.ScenesUsed.Count - 3} more)";
+                    
+                    html.AppendLine($@"                    <div style=""padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid #667eea;"">");
+                    html.AppendLine($@"                        <div style=""display: flex; justify-content: space-between; align-items: center;"">");
+                    html.AppendLine($@"                            <strong>{component.ComponentType}</strong>");
+                    html.AppendLine($@"                            <span style=""color: #28a745; font-weight: bold;"">{component.UsageCount} ({percentage:F1}%)</span>");
+                    html.AppendLine($@"                        </div>");
+                    html.AppendLine($@"                        <div style=""color: #6c757d; font-size: 0.9em; margin-top: 4px;"">");
+                    html.AppendLine($@"                            Used in: {scenesText}");
+                    html.AppendLine($@"                        </div>");
+                    html.AppendLine($@"                    </div>");
+                }
+                
+                html.AppendLine($@"                </div>");
+                html.AppendLine($@"            </div>");
+                html.AppendLine($@"        </div>");
+            }
+            
+            html.AppendLine(@"    </div>");
+            return html.ToString();
+        }
+
+        private string GenerateMissingReferencesSection()
+        {
+            var html = new StringBuilder();
+            html.AppendLine(@"    <div class=""section"">");
+            html.AppendLine(@"        <h2>Missing References</h2>");
+            
+            // Missing references overview stats
+            var totalBroken = _missingReferences.TotalBrokenReferences;
+            var affectedScenes = _missingReferences.AffectedScenes;
+            var assetTypes = _missingReferences.MissingAssetTypes.Count;
+            
+            html.AppendLine($@"        <div class=""stats-grid"" style=""margin-bottom: 20px;"">");
+            html.AppendLine($@"            <div class=""stat-card"" style=""background: {(totalBroken > 0 ? "linear-gradient(135deg, #e74c3c, #c0392b)" : "linear-gradient(135deg, #27ae60, #229954)")};"">");
+            html.AppendLine($@"                <div class=""stat-value"">{totalBroken}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Broken References</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"">");
+            html.AppendLine($@"                <div class=""stat-value"">{affectedScenes}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Affected Scenes</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"            <div class=""stat-card"">");
+            html.AppendLine($@"                <div class=""stat-value"">{assetTypes}</div>");
+            html.AppendLine($@"                <div class=""stat-label"">Asset Types</div>");
+            html.AppendLine($@"            </div>");
+            html.AppendLine($@"        </div>");
+
+            if (totalBroken > 0)
+            {
+                // Group issues by asset type
+                var issuesByType = _missingReferences.SceneIssues.Values
+                    .SelectMany(issues => issues)
+                    .GroupBy(issue => issue.AssetType)
+                    .OrderByDescending(g => g.Count());
+
+                foreach (var typeGroup in issuesByType)
+                {
+                    var typeId = typeGroup.Key.Replace(" ", "_").ToLower();
+                    var typeCount = typeGroup.Count();
+                    
+                    html.AppendLine($@"        <div class=""scene-item"" style=""margin-bottom: 15px;"">");
+                    html.AppendLine($@"            <div class=""scene-header"" onclick=""toggleScene('{typeId}_issues')"">");
+                    html.AppendLine($@"                <h3 style=""color: #e74c3c;"">");
+                    html.AppendLine($@"                    Missing {typeGroup.Key} References");
+                    html.AppendLine($@"                    <span>");
+                    html.AppendLine($@"                        <small>({typeCount} issues)</small>");
+                    html.AppendLine($@"                        <span class=""toggle-icon"" id=""icon_{typeId}_issues"">▶</span>");
+                    html.AppendLine($@"                    </span>");
+                    html.AppendLine($@"                </h3>");
+                    html.AppendLine($@"            </div>");
+                    html.AppendLine($@"            <div class=""scene-content"" id=""content_{typeId}_issues"">");
+                    html.AppendLine($@"                <div style=""display: grid; gap: 8px; margin-top: 10px;"">");
+                    
+                    foreach (var issue in typeGroup.Take(20)) // Limit to first 20 to avoid overwhelming the UI
+                    {
+                        html.AppendLine($@"                    <div style=""padding: 8px 12px; background: rgba(231,76,60,0.1); border-radius: 6px; border-left: 3px solid #e74c3c;"">");
+                        html.AppendLine($@"                        <div style=""display: flex; justify-content: space-between; align-items: flex-start;"">");
+                        html.AppendLine($@"                            <div>");
+                        html.AppendLine($@"                                <strong>{issue.ReferenceType}</strong>");
+                        html.AppendLine($@"                                <div style=""color: #666; font-size: 0.9em; margin-top: 2px;"">{issue.Description}</div>");
+                        html.AppendLine($@"                            </div>");
+                        html.AppendLine($@"                            <div style=""text-align: right; font-size: 0.85em; color: #999;"">");
+                        html.AppendLine($@"                                <div>Scene: {issue.SceneName}</div>");
+                        html.AppendLine($@"                                <div>Object: {issue.GameObjectName}</div>");
+                        html.AppendLine($@"                            </div>");
+                        html.AppendLine($@"                        </div>");
+                        html.AppendLine($@"                        <div style=""margin-top: 8px; font-family: 'Courier New', monospace; font-size: 0.8em; color: #777; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px;"">");
+                        html.AppendLine($@"                            GUID: {issue.MissingGuid}");
+                        html.AppendLine($@"                        </div>");
+                        html.AppendLine($@"                    </div>");
+                    }
+                    
+                    if (typeGroup.Count() > 20)
+                    {
+                        html.AppendLine($@"                    <div style=""text-align: center; padding: 10px; color: #666; font-style: italic;"">");
+                        html.AppendLine($@"                        ... and {typeGroup.Count() - 20} more {typeGroup.Key.ToLower()} reference issues");
+                        html.AppendLine($@"                    </div>");
+                    }
+                    
+                    html.AppendLine($@"                </div>");
+                    html.AppendLine($@"            </div>");
+                    html.AppendLine($@"        </div>");
+                }
+            }
+            else
+            {
+                html.AppendLine(@"        <div style=""text-align: center; padding: 30px; background: rgba(39,174,96,0.1); border-radius: 8px; border: 1px solid #27ae60;"">");
+                html.AppendLine(@"            <div style=""color: #27ae60; font-size: 1.2em; font-weight: bold; margin-bottom: 8px;"">No Missing References Found</div>");
+                html.AppendLine(@"            <div style=""color: #666;"">All asset references in your scenes are properly linked. Your project is in excellent condition.</div>");
+                html.AppendLine(@"        </div>");
+            }
+            
+            html.AppendLine(@"    </div>");
+            return html.ToString();
         }
 
         private string GenerateScenesSection()

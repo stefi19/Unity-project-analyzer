@@ -9,13 +9,24 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace UnityProjectAnalyzer
 {
+    /// <summary>
+    /// Analyzes C# MonoBehaviour scripts using Microsoft Roslyn compiler services.
+    /// Extracts class information, inheritance relationships, and serialized field data
+    /// to determine which scripts are actually used in Unity scenes.
+    /// </summary>
     public class ScriptAnalyzer
     {
+        /// <summary>
+        /// Performs comprehensive analysis of all C# script files in parallel for better performance.
+        /// Uses Roslyn to parse syntax trees and extract meaningful script metadata.
+        /// </summary>
+        /// <param name="scriptFiles">Array of C# script file paths to analyze</param>
+        /// <returns>Complete analysis results with script information and metadata</returns>
         public async Task<ScriptAnalysisResult> AnalyzeScripts(string[] scriptFiles)
         {
             var scripts = new List<ScriptInfo>();
             
-            // Process scripts in parallel
+            // Process scripts in parallel to improve performance with large codebases
             var tasks = scriptFiles.Select(async scriptFile =>
             {
                 var scriptInfo = await AnalyzeScript(scriptFile);
@@ -23,6 +34,7 @@ namespace UnityProjectAnalyzer
             });
 
             var results = await Task.WhenAll(tasks);
+            // Filter out any scripts that failed to parse or aren't MonoBehaviours
             scripts.AddRange(results.Where(r => r != null));
 
             return new ScriptAnalysisResult
@@ -31,13 +43,19 @@ namespace UnityProjectAnalyzer
             };
         }
 
+        /// <summary>
+        /// Analyzes a single C# script file using Roslyn to extract class and field information.
+        /// Determines if the script is a MonoBehaviour and extracts serialized field data.
+        /// </summary>
+        /// <param name="scriptFilePath">Path to the C# script file to analyze</param>
+        /// <returns>Script information if it's a valid MonoBehaviour, null otherwise</returns>
         private async Task<ScriptInfo> AnalyzeScript(string scriptFilePath)
         {
             try
             {
                 var content = await File.ReadAllTextAsync(scriptFilePath);
-                var tree = CSharpSyntaxTree.ParseText(content);
-                var root = await tree.GetRootAsync();
+                var tree = CSharpSyntaxTree.ParseText(content);     // Parse C# syntax tree
+                var root = await tree.GetRootAsync();              // Get syntax tree root node
 
                 // Find MonoBehaviour classes
                 var classes = root.DescendantNodes().OfType<ClassDeclarationSyntax>()

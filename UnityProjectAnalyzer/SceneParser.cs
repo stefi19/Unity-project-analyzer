@@ -9,10 +9,19 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace UnityProjectAnalyzer
 {
+    /// <summary>
+    /// Parses Unity scene files (.unity) to extract GameObject hierarchies and component references.
+    /// Unity scenes are stored as YAML documents with complex object relationships and references.
+    /// Handles parent-child relationships, component analysis, and script reference extraction.
+    /// </summary>
     public class SceneParser
     {
         private readonly IDeserializer _deserializer;
 
+        /// <summary>
+        /// Initializes the scene parser with YamlDotNet configured for Unity's YAML format.
+        /// Unity uses underscored naming conventions in their YAML serialization.
+        /// </summary>
         public SceneParser()
         {
             _deserializer = new DeserializerBuilder()
@@ -20,21 +29,33 @@ namespace UnityProjectAnalyzer
                 .Build();
         }
 
+        /// <summary>
+        /// Parses a Unity scene file and extracts the complete GameObject hierarchy in a readable format.
+        /// Reconstructs parent-child relationships and maintains proper scene object ordering.
+        /// </summary>
+        /// <param name="sceneFilePath">Path to the Unity scene file to parse</param>
+        /// <returns>Formatted string representation of the scene hierarchy</returns>
         public async Task<string> ParseSceneHierarchy(string sceneFilePath)
         {
             var content = await File.ReadAllTextAsync(sceneFilePath);
-            var gameObjects = ParseGameObjects(content);
-            var hierarchy = BuildHierarchy(gameObjects);
-            var orderedHierarchy = GetOrderedRoots(content, hierarchy);
-            return FormatHierarchy(orderedHierarchy);
+            var gameObjects = ParseGameObjects(content);          // Extract all GameObjects from YAML
+            var hierarchy = BuildHierarchy(gameObjects);          // Build parent-child relationships
+            var orderedHierarchy = GetOrderedRoots(content, hierarchy);  // Apply scene-defined ordering
+            return FormatHierarchy(orderedHierarchy);             // Generate readable output
         }
 
+        /// <summary>
+        /// Extracts all script references from a Unity scene file for unused script detection.
+        /// Parses MonoBehaviour components to find which C# scripts are actually used.
+        /// </summary>
+        /// <param name="sceneFilePath">Path to the Unity scene file to analyze</param>
+        /// <returns>List of script GUIDs referenced in the scene</returns>
         public async Task<List<string>> GetScriptReferences(string sceneFilePath)
         {
             var content = await File.ReadAllTextAsync(sceneFilePath);
             var references = new HashSet<string>();
 
-            // Look for MonoBehaviour script references
+            // Scan through the YAML content looking for MonoBehaviour script references
             var lines = content.Split('\n');
             for (int i = 0; i < lines.Length; i++)
             {
